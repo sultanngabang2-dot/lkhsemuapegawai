@@ -179,13 +179,13 @@
               <textarea id="actDescription" rows="4" required placeholder="1. Mulai tulis rincian pekerjaan di sini..." class="w-full px-3 py-2 border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none text-sm"></textarea>
             </div>
 
-            <!-- KOLOM OUTPUT (TAMBAHAN BARU) -->
+            <!-- KOLOM OUTPUT (Penomoran & Kapital Otomatis) -->
             <div>
               <div class="flex items-center justify-between mb-1">
                 <label class="block text-xs font-semibold text-slate-700">Output Pekerjaan</label>
-                <span class="text-[10px] text-slate-400">Hasil kegiatan / bukti</span>
+                <span class="text-[10px] text-emerald-700 font-medium">Tekan Enter untuk poin 1, 2, dst</span>
               </div>
-              <input type="text" id="actOutput" placeholder="Contoh: Dokumen, Laporan, Berkas, Kegiatan terlaksana" class="w-full px-3 py-2 border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none text-sm">
+              <textarea id="actOutput" rows="3" placeholder="1. Mulai tulis rincian output di sini..." class="w-full px-3 py-2 border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none text-sm"></textarea>
             </div>
 
             <div class="flex gap-2 pt-1">
@@ -517,6 +517,7 @@
       loadStoredData();
       setupDateInputListener();
       setupActivityTextareaAutoNumber();
+      setupOutputTextareaAutoNumber();
       setDefaultDates();
       renderProfileForm();
       renderLkhDoc();
@@ -673,6 +674,96 @@
     // Penomoran otomatis (1., 2., dst) dan huruf kapital otomatis untuk detail pekerjaan
     function setupActivityTextareaAutoNumber() {
       const textarea = document.getElementById('actDescription');
+      if (!textarea) return;
+
+      textarea.addEventListener('focus', function() {
+        if (!this.value.trim() && !this.disabled) {
+          this.value = "1. ";
+        }
+      });
+
+      textarea.addEventListener('input', function() {
+        const cursor = this.selectionStart;
+        const val = this.value;
+        if (!val) return;
+
+        if (!/^\s*\d+\.\s*/.test(val) && val.trim().length > 0) {
+          const capitalized = val.charAt(0).toUpperCase() + val.slice(1);
+          this.value = "1. " + capitalized;
+          return;
+        }
+
+        const lines = val.split('\n');
+        let changed = false;
+        const updatedLines = lines.map(line => {
+          const match = line.match(/^(\s*\d+\.\s*)([a-z])(.*)$/);
+          if (match) {
+            changed = true;
+            return match[1] + match[2].toUpperCase() + match[3];
+          }
+          return line;
+        });
+
+        if (changed) {
+          this.value = updatedLines.join('\n');
+          this.setSelectionRange(cursor, cursor);
+        }
+      });
+
+      textarea.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          const start = this.selectionStart;
+          const end = this.selectionEnd;
+          const textBefore = this.value.substring(0, start);
+          const textAfter = this.value.substring(end);
+          
+          const linesBefore = textBefore.split('\n');
+          const currentLine = linesBefore[linesBefore.length - 1];
+
+          const emptyNumMatch = currentLine.match(/^\s*(\d+)\.\s*$/);
+          if (emptyNumMatch) {
+            linesBefore[linesBefore.length - 1] = '';
+            this.value = linesBefore.join('\n') + textAfter;
+            const newCursor = linesBefore.join('\n').length;
+            this.setSelectionRange(newCursor, newCursor);
+            return;
+          }
+
+          const numMatch = currentLine.match(/^\s*(\d+)\.\s*/);
+          let nextNumber = 1;
+          if (numMatch) {
+            nextNumber = parseInt(numMatch[1], 10) + 1;
+          } else {
+            const totalNumbered = (this.value.match(/^\s*\d+\.\s*/gm) || []).length;
+            nextNumber = totalNumbered + 1;
+          }
+
+          const newLinePrefix = `\n${nextNumber}. `;
+          this.value = textBefore + newLinePrefix + textAfter;
+          const newPos = start + newLinePrefix.length;
+          this.setSelectionRange(newPos, newPos);
+        } else if (e.key === 'Backspace') {
+          const start = this.selectionStart;
+          const textBefore = this.value.substring(0, start);
+          const linesBefore = textBefore.split('\n');
+          const currentLine = linesBefore[linesBefore.length - 1];
+
+          if (/^\s*\d+\.\s*$/.test(currentLine)) {
+            e.preventDefault();
+            const textAfter = this.value.substring(start);
+            linesBefore.pop();
+            this.value = (linesBefore.length > 0 ? linesBefore.join('\n') : '') + textAfter;
+            const newPos = linesBefore.length > 0 ? linesBefore.join('\n').length : 0;
+            this.setSelectionRange(newPos, newPos);
+          }
+        }
+      });
+    }
+
+    // Penomoran otomatis (1., 2., dst) dan huruf kapital otomatis untuk kolom output
+    function setupOutputTextareaAutoNumber() {
+      const textarea = document.getElementById('actOutput');
       if (!textarea) return;
 
       textarea.addEventListener('focus', function() {
@@ -943,7 +1034,14 @@
       const startVal = document.getElementById('actStart').value.trim() || "07.00 WIB";
       const endVal = document.getElementById('actEnd').value.trim() || getStandardEndTime(dateVal);
       let descVal = document.getElementById('actDescription').value.trim();
-      const outputVal = document.getElementById('actOutput').value.trim() || "-";
+      let outputVal = document.getElementById('actOutput').value.trim();
+
+      if (outputVal && !/^\s*\d+\.\s*/.test(outputVal)) {
+        outputVal = "1. " + outputVal.charAt(0).toUpperCase() + outputVal.slice(1);
+      }
+      if (!outputVal) {
+        outputVal = "-";
+      }
 
       if (descVal && !/^\s*\d+\.\s*/.test(descVal)) {
         descVal = "1. " + descVal.charAt(0).toUpperCase() + descVal.slice(1);
@@ -1141,7 +1239,7 @@
           <td class="text-center whitespace-nowrap">${row.startTime || "07.00 WIB"}</td>
           <td class="text-center whitespace-nowrap">${autoEndTime}</td>
           <td class="whitespace-pre-wrap">${escapeHtml(row.description)}</td>
-          <td class="align-top font-medium text-slate-700">${escapeHtml(outputText)}</td>
+          <td class="align-top font-medium text-slate-700 whitespace-pre-wrap">${escapeHtml(outputText)}</td>
           <td class="text-center no-print">
             <div class="flex items-center justify-center gap-1">
               <button onclick="editItem('${row.id}')" title="Edit" class="p-1.5 text-blue-600 hover:bg-blue-50 rounded">
@@ -1195,7 +1293,7 @@
               <td style="border:1px solid #000; text-align:center; padding:5px 8px; vertical-align:top; white-space:nowrap;">${r.startTime || "07.00 WIB"}</td>
               <td style="border:1px solid #000; text-align:center; padding:5px 8px; vertical-align:top; white-space:nowrap;">${autoEndTime}</td>
               <td style="border:1px solid #000; padding:5px 8px; vertical-align:top; white-space:pre-wrap;">${escapeHtml(r.description)}</td>
-              <td style="border:1px solid #000; padding:5px 8px; vertical-align:top;">${escapeHtml(outputText)}</td>
+              <td style="border:1px solid #000; padding:5px 8px; vertical-align:top; white-space:pre-wrap;">${escapeHtml(outputText)}</td>
             </tr>
           `;
         });
