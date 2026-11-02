@@ -183,7 +183,7 @@
             <div>
               <div class="flex items-center justify-between mb-1">
                 <label class="block text-xs font-semibold text-slate-700">Output Pekerjaan</label>
-                <span class="text-[10px] text-emerald-700 font-medium">Tekan Enter untuk poin 1, 2, dst</span>
+                <span class="text-[10px] text-emerald-700 font-medium">Otomatis 1, 2, dst & Huruf Pertama Kapital</span>
               </div>
               <textarea id="actOutput" rows="3" placeholder="1. Mulai tulis rincian output di sini..." class="w-full px-3 py-2 border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none text-sm"></textarea>
             </div>
@@ -766,23 +766,27 @@
       const textarea = document.getElementById('actOutput');
       if (!textarea) return;
 
+      // Otomatis isi "1. " saat input pertama kali difokuskan jika masih kosong
       textarea.addEventListener('focus', function() {
         if (!this.value.trim() && !this.disabled) {
           this.value = "1. ";
         }
       });
 
+      // Menjamin setiap poin bernomor otomatis diawali huruf kapital setelah angka dan titik
       textarea.addEventListener('input', function() {
         const cursor = this.selectionStart;
-        const val = this.value;
+        let val = this.value;
         if (!val) return;
 
+        // Jika user mengetik langsung tanpa angka
         if (!/^\s*\d+\.\s*/.test(val) && val.trim().length > 0) {
-          const capitalized = val.charAt(0).toUpperCase() + val.slice(1);
-          this.value = "1. " + capitalized;
+          val = "1. " + val.charAt(0).toUpperCase() + val.slice(1);
+          this.value = val;
           return;
         }
 
+        // Pastikan setiap baris "1. teks", "2. teks" diawali huruf besar
         const lines = val.split('\n');
         let changed = false;
         const updatedLines = lines.map(line => {
@@ -800,6 +804,7 @@
         }
       });
 
+      // Penomoran otomatis baris berikutnya saat tombol Enter ditekan
       textarea.addEventListener('keydown', function(e) {
         if (e.key === 'Enter') {
           e.preventDefault();
@@ -811,6 +816,7 @@
           const linesBefore = textBefore.split('\n');
           const currentLine = linesBefore[linesBefore.length - 1];
 
+          // Jika baris saat ini hanya berisi nomor kosong (misal "2. "), tekan Enter menghapusnya
           const emptyNumMatch = currentLine.match(/^\s*(\d+)\.\s*$/);
           if (emptyNumMatch) {
             linesBefore[linesBefore.length - 1] = '';
@@ -1036,8 +1042,16 @@
       let descVal = document.getElementById('actDescription').value.trim();
       let outputVal = document.getElementById('actOutput').value.trim();
 
-      if (outputVal && !/^\s*\d+\.\s*/.test(outputVal)) {
-        outputVal = "1. " + outputVal.charAt(0).toUpperCase() + outputVal.slice(1);
+      // Pastikan output diawali penomoran dan kapital jika belum ada
+      if (outputVal && outputVal !== '-') {
+        if (!/^\s*\d+\.\s*/.test(outputVal)) {
+          outputVal = "1. " + outputVal.charAt(0).toUpperCase() + outputVal.slice(1);
+        } else {
+          // Format kapital huruf pertama setelah nomor pada setiap baris
+          outputVal = outputVal.split('\n').map(line => {
+            return line.replace(/^(\s*\d+\.\s*)([a-z])(.*)$/, (m, p1, p2, p3) => p1 + p2.toUpperCase() + p3);
+          }).join('\n');
+        }
       }
       if (!outputVal) {
         outputVal = "-";
